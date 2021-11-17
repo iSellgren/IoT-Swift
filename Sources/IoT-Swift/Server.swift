@@ -72,9 +72,8 @@ class Server {
         }
         
         while true {
-    //        Structure used by kernel to store most addresses.
+
             let bufferSize:Int32 = 65536;
-            //        Structure used by kernel to store most addresses.
             var socketAdress:sockaddr = sockaddr()
             var socketAdressLength:UInt32 = UInt32(MemoryLayout.size(ofValue: socketAdress).self)
             
