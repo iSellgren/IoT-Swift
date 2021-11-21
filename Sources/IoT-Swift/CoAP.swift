@@ -16,169 +16,160 @@ import AppKit
 //
 
 class CoAP {
-    let port:UInt16 = 5683
-    let host:String = "coap.me"
-
-    
-    func htons(value: CUnsignedShort) -> CUnsignedShort {
-      return (value << 8) + (value >> 8);
-    }
-    var addressBuffer = [UInt8](repeating:0, count:1024)
     
     func start (){
-    
-        var addrInfoPointer = UnsafeMutablePointer<addrinfo>(nil)
-        var hints = addrinfo()
-        hints.ai_family = AF_INET
-        hints.ai_socktype = SOCK_DGRAM
-        hints.ai_flags |= AI_CANONNAME;
-
-        let resultFromAddrInfo: Int32
-        resultFromAddrInfo = getaddrinfo(host, String(port), nil, &addrInfoPointer)
+        let connect = CoAPConnection()
+        let socket = connect.startConnection()
         
-        let strLen = Int(INET_ADDRSTRLEN)
-        var str = [CChar](repeating: 0, count: strLen)
-        let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: str.count)
-        buffer.initialize(from: &str, count: str.count)
-        
-        if addrInfoPointer!.pointee.ai_family == Int32(AF_INET) {
-            var addr = sockaddr_in()
-            memcpy(&addr, addrInfoPointer!.pointee.ai_addr, Int(MemoryLayout<sockaddr_in>.size))
-            inet_ntop(AF_INET, &addr.sin_addr , buffer, socklen_t(INET_ADDRSTRLEN));
-            print(buffer);
-        }
-        var socketaddr = sockaddr_in()
-        socketaddr.sin_len = UInt8(MemoryLayout.size(ofValue: socketaddr))
-        socketaddr.sin_family = sa_family_t(AF_INET)
-        socketaddr.sin_addr.s_addr = inet_addr(buffer)
-        
-        let socket = socket(addrInfoPointer!.pointee.ai_family, addrInfoPointer!.pointee.ai_socktype, IPPROTO_UDP)
-        
-        if socket == -1
-        {
-            print("Error when creating socket")
-            return
-        }
-        let socklenght = socklen_t(MemoryLayout<sockaddr_in>.size)
-        let _: () = withUnsafePointer(to: &socketaddr) {
-            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                print($0.pointee.self)
-                connect(socket, addrInfoPointer!.pointee.ai_addr, socklenght)
-            }
-        }
-        
-//        let hexArray:[UInt8] = [UInt8(64), UInt8(1), UInt8(4), UInt8(0xd2), UInt8(0xb4), UInt8(0x74), UInt8(0x65), UInt8(0x73), UInt8(0x74)]
-//        let hexArray:[UInt8] = [UInt8(0x40), UInt8(0x01), UInt8(0x04), UInt8(0xd2), UInt8(0xb5),UInt8(0x68),UInt8(0x65),UInt8(0x6c), UInt8(0x6c), UInt8(0x6f)]
-//                let hexArray:[UInt8] = [UInt8(0x40), UInt8(0x01), UInt8(0x04), UInt8(0xd2), UInt8(0xb1),UInt8(0x35)]
-//                let hexArray:[UInt8] = [UInt8(0x40), UInt8(0x01), UInt8(0x04), UInt8(0xd2), UInt8(0xb4), UInt8(0x73), UInt8(0x65), UInt8(0x67), UInt8(0x31)]
-//        Confirmable
         let VersionInput:UInt8 = 1
-        let TypeInput:UInt8 = 0
-        let TKLInput:UInt8 = 0
         
+        print("<--SELECT MESSAGE TYPE-->")
+        for msgTypes in MessageTypes.allCases {
+            print("\(msgTypes.rawValue) -> \(msgTypes)")
+        }
+        
+        let TypeInput:UInt8 = UInt8(Int(readLine()!)!)
+        let TKLInput:UInt8 = 0
         let VersionBin:UInt8 = 0
         let TypeBin:UInt8 = 0
         let TklBin:UInt8 = 0
-        var version = ((VersionBin) | VersionInput) << 2
+        let version = ((VersionBin) | VersionInput) << 2
         let type = ((TypeBin) | TypeInput) << 0
         
 //        _ = version+type
         
-        var tkl = (((TklBin) | TKLInput) << 0)
+        let tkl = (((TklBin) | TKLInput) << 0)
 //        var secoundPart = tkl
 //        print(firstPart, secoundPart)
 //        var joinedPart = (firstPart << 4) | secoundPart
 //        print(joinedPart)
 //
-        
         let firstMessageByte:UInt8 = UInt8((version << 4) + (type << 2) + (tkl))
-        print(firstMessageByte, "version")
+        print("<--SELECT METHOD-->")
+        for msgTypes in MethodCodes.allCases {
+            print("\(msgTypes.rawValue) -> \(msgTypes)")
+        }
         
-        let CodeInput:Int = 4
+        var CodeInput:Int? = nil
+        let MethodInput = readLine()
+        if let num = Int(MethodInput!) {
+            CodeInput = num
+        }
         
 //        let secondMessageByte:UInt8 =
         
-        let MessageID:UInt16 = 124
+        
+        print("<--SELECT MESSAGE ID 0 <-> 65535-->")
+        let MessageID:UInt16 =  UInt16(Int(readLine()!)!)
         var MessageIDFirst:UInt8 = 0
         var MessageIDSecond:UInt8 = 0
         
         MessageIDFirst = UInt8((MessageID >> 8) & 0xFF)
         MessageIDSecond = UInt8((MessageID & 0xFF))
-        print(MessageIDFirst, MessageIDSecond)
         
         
-        let Path:String = "sink"
+        print("<--ENTER PATH-->")
+        let Path:String = readLine()!
         var PathArray:[UInt8] = []
         for values in Path.utf8 {
             PathArray.append(values)
         }
-        let Payload:String = "FreddeWASHERE"
-        var PayloadArray:[UInt8] = []
-        for values in Payload.utf8 {
-            PayloadArray.append(values)
+        
+        print("<--ENTER OPTION-->")
+//        let OptInputDelta:String = readLine()!
+//        var OptInputArray:[UInt8] = []
+//        for values in OptInputDelta.utf8 {
+//            OptInputArray.append(values)
+//        }
+        for optTypes in OptionValues.allCases {
+            print("\(optTypes.rawValue) -> \(optTypes)")
         }
-
-        let OptInputDelta = 11
+        
+        let OptInputDelta = Int(readLine()!)!
         let OptInputLenght = Path.count
         
         let Opt = ((OptInputDelta << 4 ) + (OptInputLenght) << 0)
         
-        print(Opt,"Opt")
-        
-        var hexArray:[UInt8] = [UInt8(firstMessageByte), UInt8(CodeInput), UInt8(MessageIDFirst), UInt8(MessageIDSecond), UInt8(Opt)]
+        var hexArray:[UInt8] = [UInt8(firstMessageByte), UInt8(CodeInput ?? 0), UInt8(MessageIDFirst), UInt8(MessageIDSecond), UInt8(Opt)]
         
         for i in 0..<Int(PathArray.count){
             hexArray.append(PathArray[i])
         }
-
-        for i in 0..<Int(PayloadArray.count){
-            if i == 0 {
-                hexArray.append(0xFF)
+        var fixPayload = ""
+        if CodeInput == 2 || CodeInput == 3
+        {
+            print("<--ENTER PAYLOAD-->")
+            let Payload:String = readLine()!
+            var PayloadArray:[UInt8] = []
+            for values in Payload.utf8 {
+                PayloadArray.append(values)
             }
-            hexArray.append(PayloadArray[i])
+            for i in 0..<Int(PayloadArray.count){
+                if i == 0 {
+                    fixPayload = Payload
+                    hexArray.append(0xFF)
+                }
+                hexArray.append(PayloadArray[i])
+            }
         }
-    
+        print("Writing | Ver: \(VersionInput) | T: \(MessageTypes(rawValue: Int(TypeInput))!) | TKL: \(tkl) | Code: \(MethodCodes(rawValue: Int(CodeInput!))!) | Message ID \(MessageID) | \n | Token: \(0) Option: \(OptionValues(rawValue: OptInputDelta)!): \(Path)  \(0xFF) | Payload: \(fixPayload) \n\n")
         
         
-//        let hexArray:[UInt8] = [UInt8(0x51), UInt8(0x01), UInt8(0x04), UInt8(0xd2), UInt8(0xb4), UInt8(0x73), UInt8(0x65), UInt8(0x67), UInt8(0x31)]
-        
-//        print(hexArray)
-//        print(String(decoding: hexArray, as: UTF8.self))
         write(socket, hexArray, hexArray.count)
+        
+        
         let bufferSize:Int = 65536;
 
         let readBuffer: UnsafeMutablePointer<UInt8> = UnsafeMutablePointer<UInt8>.allocate(capacity: Int(bufferSize))
 
         let readResult = read(socket, readBuffer, bufferSize)
-        
 //        print(readBuffer[0])
         
         let reSizeBuffer: UnsafeMutablePointer<UInt8> = UnsafeMutablePointer<UInt8>.allocate(capacity: Int(readResult))
         reSizeBuffer.initialize(from: readBuffer, count: readResult)
         
-        let message = String(cString: readBuffer)
-        print(message)
+//        let message = String(cString: readBuffer)
         
-        print(getVersion(buffer: reSizeBuffer))
-        print(MessageTypes(rawValue: getT(buffer: reSizeBuffer))!)
-//        print(getTLK(buffer: reSizeBuffer))
-        print(ResponseCodes(rawValue: getCode(buffer: reSizeBuffer))!)
+        var printMessage = "Reading | Ver: \(getVersion(buffer: reSizeBuffer)) | T: \(MessageTypes(rawValue: getT(buffer: reSizeBuffer))!) | TKL: \(getTLK(buffer: reSizeBuffer)) | Code: \(ResponseCodes(rawValue: getCode(buffer: reSizeBuffer))!) | Message ID \(getmessgeID(buffer: reSizeBuffer)) | \n | Token: "
         
-        print(getmessgeID(buffer: reSizeBuffer))
-//        print(getTokenLenght(buffer: reSizeBuffer)[0])
         let options = getOptions(buffer: reSizeBuffer, size:readResult)
-        let opts = options.0
         let payload = String(bytes: options.1, encoding: .utf8)!
+//        var opts = options.0[0].value
         
-//        print(ContentFormats(rawValue: Int(opts.last!.context[0]))!)
+//        print(printMessage)
         
+        var OptName = ""
+        var index = 1
+        for values in options.0{
+
+            OptName += "OPT Name: #\(index): "
+            index += 1
+            OptName += "\(OptionValues(rawValue: values.value)!): "
+//            Etag += "Delta: " + String(OptionValues(rawValue: values.value)!.rawValue)
+//            print(Etag)
+            if(values.value == 12){
+                OptName += "\(ContentFormats(rawValue: Int(values.context[0]))!)"
+            }
+            if(values.value == 8)
+            {
+                for val in values.context
+                {
+
+                    OptName += (String(format: "%c", val) as String)
+                }
+            }
+            if(values.value == 4){
+                for val in values.context
+                {
+                    OptName += String(format:"%02X", val) + " "
+                }
+            }
+            printMessage += OptName + " | "
+            OptName = ""
+        }
         
-        print(payload)
-//        let inta = getOptionType(buffer: reSizeBuffer, test: &opts)
-        
-        
-        
-        
+        printMessage += "Payload: " + payload
+        print(printMessage)
     }
 }
 
@@ -232,7 +223,27 @@ func getTokenLenght(buffer:UnsafeMutablePointer<UInt8>) -> UnsafeMutablePointer<
     return ByteArray
 }
 
-enum MessageTypes: Int{
+enum OptionValues: Int, CaseIterable {
+    case IFMatch = 1
+    case UriHost = 3
+    case ETag = 4
+    case IFNoneMatch = 5
+    case UriPort = 7
+    case LocationPath = 8
+    case UriPath = 11
+    case ContentFormat = 12
+    case MaxAge = 14
+    case UriQuery = 15
+    case Accept = 17
+    case LocationQuery = 20
+    case Size2 = 28
+    case ProxyUri = 35
+    case ProxyScheme = 39
+    case Size1 = 60
+    
+}
+
+enum MessageTypes: Int, CaseIterable{
     case CONfirmable = 0
     case NONConfirmable = 1
     case ACKnowledgement = 2
@@ -240,7 +251,7 @@ enum MessageTypes: Int{
     
 }
 
-enum ContentFormats: Int {
+enum ContentFormats: Int, CaseIterable {
     case textPlain = 0
     case applicationLinkFormat = 40
     case applicationXML = 41
@@ -250,7 +261,7 @@ enum ContentFormats: Int {
     case applicationCbor = 60
 }
 
-enum MethodCodes: Int {
+enum MethodCodes: Int, CaseIterable {
     case EMPTY = 0
     case GET = 1
     case POST = 2
@@ -308,7 +319,6 @@ func getOptions(buffer:UnsafeMutablePointer<UInt8>, size:Int) -> ([options],[UIn
             j += 1
             if(j < size)
             {
-                print("hello")
                 for i in (j..<size) {
                     payloadArray.append(UInt8(buffer[i]))
                 }
@@ -349,23 +359,23 @@ func getOptions(buffer:UnsafeMutablePointer<UInt8>, size:Int) -> ([options],[UIn
     return (optionArray, [])
 }
 
-//func getOptionType(buffer:UnsafeMutablePointer<UInt8>, test: inout [options]) -> [Int] {
-//    let tokenLenght = UInt8(getTLK(buffer: buffer))
-////    Try to get ContentFormat
-//    var optionTypeArray:[Int] = []
-//    for i in 0..<Int(test.count){
-//
-//
-//        if((test[i].delta) == 12){
-//        print(test[i].delta)
-//        if (test.count == 1 || test[i].length == 0) {
-//            optionTypeArray.append(0)
-//
-//        }
-//
-//        optionTypeArray.append(Int(buffer[(Int(tokenLenght)+4+test[i].delta - 2)]))
-//        }
-//    }
-//    print(optionTypeArray)
-//    return optionTypeArray
-//}
+func getOptionType(buffer:UnsafeMutablePointer<UInt8>, test: inout [options]) -> [Int] {
+    let tokenLenght = UInt8(getTLK(buffer: buffer))
+//    Try to get ContentFormat
+    var optionTypeArray:[Int] = []
+    for i in 0..<Int(test.count){
+
+
+        if((test[i].delta) == 12){
+        print(test[i].delta)
+        if (test.count == 1 || test[i].length == 0) {
+            optionTypeArray.append(0)
+
+        }
+
+        optionTypeArray.append(Int(buffer[(Int(tokenLenght)+4+test[i].delta - 2)]))
+        }
+    }
+    print(optionTypeArray)
+    return optionTypeArray
+}
