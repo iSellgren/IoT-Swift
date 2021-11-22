@@ -13,10 +13,6 @@ class CoAPConnection {
     
     func startConnection() -> Int32{
         var addrInfoPointer = UnsafeMutablePointer<addrinfo>(nil)
-        var hints = addrinfo()
-        hints.ai_family = AF_INET
-        hints.ai_socktype = SOCK_DGRAM
-        hints.ai_flags |= AI_CANONNAME;
 
         let _:Int32 = getaddrinfo(host, String(port), nil, &addrInfoPointer)
         

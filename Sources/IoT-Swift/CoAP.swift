@@ -35,15 +35,10 @@ class CoAP {
         let TklBin:UInt8 = 0
         let version = ((VersionBin) | VersionInput) << 2
         let type = ((TypeBin) | TypeInput) << 0
-        
-//        _ = version+type
+    
         
         let tkl = (((TklBin) | TKLInput) << 0)
-//        var secoundPart = tkl
-//        print(firstPart, secoundPart)
-//        var joinedPart = (firstPart << 4) | secoundPart
-//        print(joinedPart)
-//
+        
         let firstMessageByte:UInt8 = UInt8((version << 4) + (type << 2) + (tkl))
         print("<--SELECT METHOD-->")
         for msgTypes in MethodCodes.allCases {
@@ -55,10 +50,7 @@ class CoAP {
         if let num = Int(MethodInput!) {
             CodeInput = num
         }
-        
 //        let secondMessageByte:UInt8 =
-        
-        
         print("<--SELECT MESSAGE ID 0 <-> 65535-->")
         let MessageID:UInt16 =  UInt16(Int(readLine()!)!)
         var MessageIDFirst:UInt8 = 0
@@ -66,6 +58,8 @@ class CoAP {
         
         MessageIDFirst = UInt8((MessageID >> 8) & 0xFF)
         MessageIDSecond = UInt8((MessageID & 0xFF))
+        
+//        print(MessageIDFirst, MessageIDSecond)
         
         
         print("<--ENTER PATH-->")
@@ -75,20 +69,13 @@ class CoAP {
             PathArray.append(values)
         }
         
-        print("<--ENTER OPTION-->")
-//        let OptInputDelta:String = readLine()!
-//        var OptInputArray:[UInt8] = []
-//        for values in OptInputDelta.utf8 {
-//            OptInputArray.append(values)
-//        }
-        for optTypes in OptionValues.allCases {
-            print("\(optTypes.rawValue) -> \(optTypes)")
-        }
-        
-        let OptInputDelta = Int(readLine()!)!
+        let OptInputDelta = OptionValues.UriPath.rawValue
         let OptInputLenght = Path.count
         
-        let Opt = ((OptInputDelta << 4 ) + (OptInputLenght) << 0)
+        let Opt = ((OptInputDelta << 4 ) + (OptInputLenght))
+        
+        
+        
         
         var hexArray:[UInt8] = [UInt8(firstMessageByte), UInt8(CodeInput ?? 0), UInt8(MessageIDFirst), UInt8(MessageIDSecond), UInt8(Opt)]
         
@@ -112,7 +99,7 @@ class CoAP {
                 hexArray.append(PayloadArray[i])
             }
         }
-        print("Writing | Ver: \(VersionInput) | T: \(MessageTypes(rawValue: Int(TypeInput))!) | TKL: \(tkl) | Code: \(MethodCodes(rawValue: Int(CodeInput!))!) | Message ID \(MessageID) | \n | Token: \(0) Option: \(OptionValues(rawValue: OptInputDelta)!): \(Path)  \(0xFF) | Payload: \(fixPayload) \n\n")
+        print("Writing | Ver: \(VersionInput) | T: \(MessageTypes(rawValue: Int(TypeInput))!) | TKL: \(tkl) | Code: \(MethodCodes(rawValue: Int(CodeInput!))!) | Message ID \(MessageID) | \n | Token: \(0) | Option: \(OptionValues(rawValue: OptInputDelta)!): \(Path)   | \(0xFF) | Payload: \(fixPayload) \n\n")
         
         
         write(socket, hexArray, hexArray.count)
@@ -123,20 +110,15 @@ class CoAP {
         let readBuffer: UnsafeMutablePointer<UInt8> = UnsafeMutablePointer<UInt8>.allocate(capacity: Int(bufferSize))
 
         let readResult = read(socket, readBuffer, bufferSize)
-//        print(readBuffer[0])
         
         let reSizeBuffer: UnsafeMutablePointer<UInt8> = UnsafeMutablePointer<UInt8>.allocate(capacity: Int(readResult))
         reSizeBuffer.initialize(from: readBuffer, count: readResult)
         
-//        let message = String(cString: readBuffer)
         
-        var printMessage = "Reading | Ver: \(getVersion(buffer: reSizeBuffer)) | T: \(MessageTypes(rawValue: getT(buffer: reSizeBuffer))!) | TKL: \(getTLK(buffer: reSizeBuffer)) | Code: \(ResponseCodes(rawValue: getCode(buffer: reSizeBuffer))!) | Message ID \(getmessgeID(buffer: reSizeBuffer)) | \n | Token: "
+        var printMessage = "Reading | Ver: \(getVersion(buffer: reSizeBuffer)) | T: \(MessageTypes(rawValue: getT(buffer: reSizeBuffer))!) | TKL: \(getTLK(buffer: reSizeBuffer)) | Code: \(ResponseCodes(rawValue: getCode(buffer: reSizeBuffer))!) | Message ID \(getmessgeID(buffer: reSizeBuffer)) | \n | Options: "
         
         let options = getOptions(buffer: reSizeBuffer, size:readResult)
         let payload = String(bytes: options.1, encoding: .utf8)!
-//        var opts = options.0[0].value
-        
-//        print(printMessage)
         
         var OptName = ""
         var index = 1
@@ -145,8 +127,6 @@ class CoAP {
             OptName += "OPT Name: #\(index): "
             index += 1
             OptName += "\(OptionValues(rawValue: values.value)!): "
-//            Etag += "Delta: " + String(OptionValues(rawValue: values.value)!.rawValue)
-//            print(Etag)
             if(values.value == 12){
                 OptName += "\(ContentFormats(rawValue: Int(values.context[0]))!)"
             }
@@ -157,6 +137,27 @@ class CoAP {
 
                     OptName += (String(format: "%c", val) as String)
                 }
+            }
+            if(values.value == 23)
+            {
+                print(Opt)
+                var blockArray:[UInt8] = [UInt8(firstMessageByte), UInt8(CodeInput ?? 0), UInt8(MessageIDFirst), UInt8(MessageIDSecond+1), UInt8(Opt)]
+                for i in 0..<Int(PathArray.count){
+                    blockArray.append(PathArray[i])
+                }
+                
+                let OptBlock2 = 12
+                let OptBlock2Lenght = 1
+                let Block2Opt = ((OptBlock2 << 4 ) + (OptBlock2Lenght << 0))
+                
+                blockArray.append(UInt8(Block2Opt))
+                for val in values.context
+                {
+                    print(val)
+                    blockArray.append(UInt8(val))
+                }
+                print(blockArray)
+                write(socket, blockArray, blockArray.count)
             }
             if(values.value == 4){
                 for val in values.context
@@ -216,10 +217,8 @@ func getmessgeID(buffer:UnsafeMutablePointer<UInt8>) -> Int
 func getTokenLenght(buffer:UnsafeMutablePointer<UInt8>) -> UnsafeMutablePointer<UInt8>
 {
     let tokenLenght = UInt8(getTLK(buffer: buffer))
-    
     let ByteArray = UnsafeMutablePointer<UInt8>.allocate(capacity: Int(tokenLenght))
     ByteArray.initialize(from: buffer + 4, count: Int(tokenLenght))
-
     return ByteArray
 }
 
@@ -240,6 +239,8 @@ enum OptionValues: Int, CaseIterable {
     case ProxyUri = 35
     case ProxyScheme = 39
     case Size1 = 60
+    case Block2 = 23
+    case Block1 = 27
     
 }
 
@@ -262,7 +263,7 @@ enum ContentFormats: Int, CaseIterable {
 }
 
 enum MethodCodes: Int, CaseIterable {
-    case EMPTY = 0
+//    case EMPTY = 0
     case GET = 1
     case POST = 2
     case PUT = 3
@@ -338,7 +339,27 @@ func getOptions(buffer:UnsafeMutablePointer<UInt8>, size:Int) -> ([options],[UIn
         
         var OptValue:[UInt8] = []
         
-        if Optlength != 0 && optDelta != 12{
+        if(optDelta + deltaSum == 23)
+        {
+            print("BLOCK")
+            let value:Int = Int(buffer[j])
+            print(value)
+            let blockNr = ((Int(value) & 0b11110000) >> 4)
+            let MoreFlags = ((Int(value) & 0b0001000) >> 3)
+            let blockSize = Int(((powf(2,Float((((Int(value) & 0b00000111) << 0)+4))))))
+            
+            let BlockByte = blockNr + MoreFlags + blockSize
+            print(BlockByte,"blockByte")
+//            OptValue.append(UInt8(blockNr))
+//            OptValue.append(UInt8(MoreFlags))
+//            OptValue.append(UInt8(blockSize))
+            OptValue.append(UInt8(BlockByte))
+            
+            j+=1
+        }
+            
+        
+        else if Optlength != 0 && optDelta != 12{
             for _ in (0..<Optlength)
             {
                 let value = Int(buffer[j])
@@ -352,6 +373,7 @@ func getOptions(buffer:UnsafeMutablePointer<UInt8>, size:Int) -> ([options],[UIn
         else if (Optlength == 0) && optDelta >= 9 {
             OptValue.append(UInt8(Int(buffer[(Int(tokenLenght) + 4 + optDelta + deltaSum - 2)])))
         }
+        
         let option = options(delta: optDelta, length: Optlength, value: optDelta + deltaSum , context: OptValue )
         deltaSum += optDelta
         optionArray.append(option)
