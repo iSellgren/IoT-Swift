@@ -94,6 +94,7 @@ class Server {
             print(str)
             
             let _: Void = requestHTTPHandler(buffer: str, client: client, reqNr :&requestCount, jsonArray: &jsonArray)
+            
         }
     }
 }

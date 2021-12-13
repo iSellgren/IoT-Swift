@@ -18,9 +18,14 @@ import Foundation
 //        server.start()
 //    }
 //}else {
-    print("Starting as CoAP")
-    let coap = CoAP()
-    coap.start()
-//}
+//    print("Starting as CoAP")
+//    let coap = CoAP()
+//    coap.start()
+
+print("Starting as MQTT")
+let mqtt = MQTT()
+mqtt.start()
+////}
+
 exit(EXIT_SUCCESS)
 
