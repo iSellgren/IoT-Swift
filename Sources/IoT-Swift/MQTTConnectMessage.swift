@@ -7,32 +7,26 @@
 
 import Foundation
 class MQTTConnectMessage{
-    func getMessageType(buffer:UnsafeMutablePointer<UInt8>) -> Int
+    func getMessageType(header: UInt8) -> Int
     {
-        let firstByte: Int = Int(buffer[0])
+        let firstByte: Int = Int(header)
         let mask = 0b11110000
         let shift = 4
         return (Int(firstByte) & mask) >> shift
         
     }
-    func getReserved(buffer:UnsafeMutablePointer<UInt8>) -> Int
+    func getReserved(header: UInt8) -> Int
     {
-        let firstByte: Int = Int(buffer[0])
+        let firstByte: Int = Int(header)
         let mask = 0b00001111
         let shift = 0
         return (Int(firstByte) & mask) >> shift
 
     }
-    func getMessageLen(buffer:UnsafeMutablePointer<UInt8>) -> Int
-    {
-        let secondByte: Int = Int(buffer[1])
-        return secondByte
-        
-    }
     func getProtocolNameLength(buffer:UnsafeMutablePointer<UInt8>) -> Int
     {
         var value : UInt16 = 0
-        let data = NSData(bytes: buffer + 2, length: 2)
+        let data = NSData(bytes: buffer, length: 2)
         data.getBytes(&value, length: 2)
         value = UInt16(bigEndian: value)
         return Int(value)
@@ -40,9 +34,9 @@ class MQTTConnectMessage{
     func getProtocolName(buffer:UnsafeMutablePointer<UInt8>) -> String
     {
         let length =  getProtocolNameLength(buffer: buffer)
-        var j = 4
+        var j = 2
         var protocolName:String = ""
-        while(j < 4 + length){
+        while(j < 2 + length){
             protocolName += String(format:"%c", (Int(buffer[j])))
 
             j+=1
@@ -52,14 +46,14 @@ class MQTTConnectMessage{
     func getVersion(buffer:UnsafeMutablePointer<UInt8>) -> Int
     {
         var length =  getProtocolNameLength(buffer: buffer)
-        length += 4
+        length += 2
         let byte: Int = Int(buffer[length])
         return byte
     }
     func getUserNameFlag(buffer:UnsafeMutablePointer<UInt8>) -> Int
     {
         var length =  getProtocolNameLength(buffer: buffer)
-        length += 5
+        length += 3
         let byte: Int = Int(buffer[length])
         let mask = 0b1000000
         let shift = 7
@@ -68,7 +62,7 @@ class MQTTConnectMessage{
     func getPasswordFlag(buffer:UnsafeMutablePointer<UInt8>) -> Int
     {
         var length =  getProtocolNameLength(buffer: buffer)
-        length += 5
+        length += 3
         let byte: Int = Int(buffer[length])
         let mask = 0b01000000
         let shift = 6
@@ -77,7 +71,7 @@ class MQTTConnectMessage{
     func getWillRetain(buffer:UnsafeMutablePointer<UInt8>) -> Int
     {
         var length =  getProtocolNameLength(buffer: buffer)
-        length += 5
+        length += 3
         let byte: Int = Int(buffer[length])
         let mask = 0b00100000
         let shift = 5
@@ -86,7 +80,7 @@ class MQTTConnectMessage{
     func getQoSFlag(buffer:UnsafeMutablePointer<UInt8>) -> Int
     {
         var length =  getProtocolNameLength(buffer: buffer)
-        length += 5
+        length += 3
         let byte: Int = Int(buffer[length])
         let mask = 0b00011000
         let shift = 3
@@ -96,7 +90,7 @@ class MQTTConnectMessage{
     func getWillFlag(buffer:UnsafeMutablePointer<UInt8>) -> Int
     {
         var length =  getProtocolNameLength(buffer: buffer)
-        length += 5
+        length += 3
         let byte: Int = Int(buffer[length])
         let mask = 0b00000100
         let shift = 2
@@ -105,7 +99,7 @@ class MQTTConnectMessage{
     func getCleanSessionFlag(buffer:UnsafeMutablePointer<UInt8>) -> Int
     {
         var length =  getProtocolNameLength(buffer: buffer)
-        length += 5
+        length += 3
         let byte: Int = Int(buffer[length])
         let mask = 0b00000010
         let shift = 1
@@ -114,7 +108,7 @@ class MQTTConnectMessage{
     func getReserveFlag(buffer:UnsafeMutablePointer<UInt8>) -> Int
     {
         var length =  getProtocolNameLength(buffer: buffer)
-        length += 5
+        length += 3
         let byte: Int = Int(buffer[length])
         let mask = 0b00000001
         let shift = 0
@@ -125,7 +119,7 @@ class MQTTConnectMessage{
     func getAlive(buffer:UnsafeMutablePointer<UInt8>) -> Int
     {
         var value : UInt16 = 0
-        let data = NSData(bytes: buffer + 10, length: 4)
+        let data = NSData(bytes: buffer + 8, length: 4)
         data.getBytes(&value, length: 4)
         value = UInt16(bigEndian: value)
         return Int(value)
@@ -134,7 +128,7 @@ class MQTTConnectMessage{
     func getClientIDLength(buffer:UnsafeMutablePointer<UInt8>) -> Int
     {
         var value : UInt16 = 0
-        let data = NSData(bytes: buffer + 12, length: 4)
+        let data = NSData(bytes: buffer + 10, length: 4)
         data.getBytes(&value, length: 4)
         value = UInt16(bigEndian: value)
         return Int(value)
@@ -144,9 +138,9 @@ class MQTTConnectMessage{
 //        var length =  getProtocolNameLength(buffer: buffer)
         let clientLength = getClientIDLength(buffer: buffer)
 //        length += clientLength
-        var j = 14
+        var j = 12
         var clientID:String = ""
-        while(j < 14 + clientLength+2){
+        while(j < 12 + clientLength){
             clientID += String(format:"%c", (Int(buffer[j])))
 
             j+=1
@@ -159,18 +153,18 @@ class MQTTConnectMessage{
         let clientLength = getClientIDLength(buffer: buffer)
         
         var value : UInt16 = 0
-        let data = NSData(bytes: buffer + 14+clientLength+2, length: 4)
+        let data = NSData(bytes: buffer + 12+clientLength, length: 4)
         data.getBytes(&value, length: 4)
         value = UInt16(bigEndian: value)
         return Int(value)
     }
     
-    func getClientUserName(buffer:UnsafeMutablePointer<UInt8>) -> String
-    {
-        var length =  getProtocolNameLength(buffer: buffer)
-        let clientLength = getClientIDLength(buffer: buffer)
-        
-        return "hej"
-    }
+//    func getClientUserName(buffer:UnsafeMutablePointer<UInt8>) -> String
+//    {
+//        var length =  getProtocolNameLength(buffer: buffer)
+//        let clientLength = getClientIDLength(buffer: buffer)
+//        
+//        return "hej"
+//    }
     
 }

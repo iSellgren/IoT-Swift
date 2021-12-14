@@ -7,52 +7,47 @@
 
 import Foundation
 class MQTTPublishMessage{
-    func getMessageType(buffer:UnsafeMutablePointer<UInt8>) -> Int
+    func getMessageType(header: UInt8) -> Int
     {
-        let firstByte: Int = Int(buffer[0])
+        let firstByte: Int = Int(header)
         let mask = 0b11110000
         let shift = 4
         return (Int(firstByte) & mask) >> shift
         
     }
-    func getReserved(buffer:UnsafeMutablePointer<UInt8>) -> Int{
-        let firstByte: Int = Int(buffer[0])
+    func getReserved(header: UInt8) -> Int{
+        let firstByte: Int = Int(header)
         let mask = 0b00001111
         let shift = 0
         return (Int(firstByte) & mask) >> shift
         
     }
-    func getDUP(buffer:UnsafeMutablePointer<UInt8>) -> Int
+    func getDUP(header: UInt8) -> Int
     {
-        let firstByte: Int = Int(buffer[0])
+        let firstByte: Int = Int(header)
         let mask = 0b00001000
         let shift = 3
         return (Int(firstByte) & mask) >> shift
         
     }
-    func getQoS(buffer:UnsafeMutablePointer<UInt8>) -> Int
+    func getQoS(header: UInt8) -> Int
     {
-        let byte: Int = Int(buffer[0])
+        let byte: Int = Int(header)
         let mask = 0b00000110
         let shift = 1
         return (Int(byte) & mask) >> shift
     }
-    func getRetain(buffer:UnsafeMutablePointer<UInt8>) -> Int
+    func getRetain(header: UInt8) -> Int
     {
-        let byte: Int = Int(buffer[0])
+        let byte: Int = Int(header)
         let mask = 0b00000001
         let shift = 0
         return (Int(byte) & mask) >> shift
     }
-    func getMsgLen(buffer:UnsafeMutablePointer<UInt8>) -> Int
-    {
-        let secondByte: Int = Int(buffer[1])
-        return secondByte
-    }
     func getTopicLen(buffer:UnsafeMutablePointer<UInt8>) ->Int
     {
         var value : UInt16 = 0
-        let data = NSData(bytes: buffer + 2, length: 4)
+        let data = NSData(bytes: buffer, length: 4)
         data.getBytes(&value, length: 4)
         value = UInt16(bigEndian: value)
         return Int(value)
@@ -60,9 +55,9 @@ class MQTTPublishMessage{
     func getTopic(buffer:UnsafeMutablePointer<UInt8>) -> String
     {
         let length = getTopicLen(buffer: buffer)
-        var j = 4
+        var j = 2
         var protocolName:String = ""
-        while(j < 4 + length){
+        while(j < 2 + length){
             protocolName += String(format:"%c", (Int(buffer[j])))
 
             j+=1
@@ -70,15 +65,15 @@ class MQTTPublishMessage{
         print(j)
         return protocolName
     }
-    func getMessage(buffer:UnsafeMutablePointer<UInt8>) -> String
+    func getMessage(buffer:UnsafeMutablePointer<UInt8>, length: UInt32) -> String
     {
         print("PublishMessage")
-        let msglength = getMsgLen(buffer: buffer)
+        let msglength = Int(length)
         let topiclength = getTopicLen(buffer: buffer)
         
-        var j = 4 + topiclength
+        var j = 2 + topiclength
         var protocolName:String = ""
-        while(j < (2+msglength)){
+        while(j < (msglength)){
             protocolName += String(format:"%c", (Int(buffer[j])))
 
             j+=1

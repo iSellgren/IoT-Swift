@@ -11,10 +11,12 @@ var subFilters: [String:Array<Int32>] = [:]
 class PingResponse{
     let responseMessage:[UInt8] = [(0xD0), (0x00)]
     
-    func sendPingResponse(client:Int32, buffer:UnsafeMutablePointer<UInt8>){
+    func sendPingResponse(client:Int32, buffer:UnsafeMutablePointer<UInt8>, length: UInt32, header: UInt8){
         
+        print("header",header)
         let connectMessage = MQTTConnectMessage.init()
-        let messageType = connectMessage.getMessageType(buffer: buffer)
+        let messageType = connectMessage.getMessageType(header: header)
+        print("messageType", messageType)
         if(messageType == 12){
             send(client, responseMessage, responseMessage.capacity,0)
         }
@@ -22,10 +24,10 @@ class PingResponse{
 }
 class DisconnectMessage{
     let disconnectMessage:[UInt8] = [(0xE0), (0x00)]
-    func sendDisconnectAck(client:Int32, buffer:UnsafeMutablePointer<UInt8>){
+    func sendDisconnectAck(client:Int32, buffer:UnsafeMutablePointer<UInt8>, length: UInt32, header: UInt8){
         
         let connectMessage = MQTTConnectMessage.init()
-        let messageType = connectMessage.getMessageType(buffer: buffer)
+        let messageType = connectMessage.getMessageType(header: header)
         if(messageType == 14){
             close(client)
         }
@@ -34,69 +36,58 @@ class DisconnectMessage{
 
 class PublishMessage{
     
-    func sendpublishAck(client:Int32, buffer:UnsafeMutablePointer<UInt8>){
+    func sendpublishAck(client:Int32, buffer:UnsafeMutablePointer<UInt8>, length: UInt32, header: UInt8){
         
         let publishMessage = MQTTPublishMessage.init()
-        let messageType = publishMessage.getMessageType(buffer: buffer)
+        let messageType = publishMessage.getMessageType(header: header)
 
         if(messageType == 3)
         {
-            let DUP = publishMessage.getDUP(buffer: buffer)
-            let QoS = publishMessage.getQoS(buffer: buffer)
-            let Retain = publishMessage.getRetain(buffer:buffer)
-            let msgLen = publishMessage.getMsgLen(buffer:buffer)
-            let topiclen = publishMessage.getTopicLen(buffer:buffer)
-            let topic = publishMessage.getTopic(buffer:buffer)
-            let message = publishMessage.getMessage(buffer:buffer)
-            let bufferlength:Int = Int(MemoryLayout.size(ofValue: buffer).self)
-            let data = NSData(bytesNoCopy: buffer, length: msgLen+2, freeWhenDone: false)
+            let QoS = publishMessage.getQoS(header: header)
+            let msgLen = Int(length)
+//            let header = NSData(bytesNoCopy: header, length: 2)
+            let data = NSData(bytesNoCopy: buffer, length: msgLen, freeWhenDone: false)
             let array = [UInt8](data)
             
             if(QoS == 0)
             {
-                sendToAllInDict(client: client, topic: array, topiclength: msgLen+2, subFilters: subFilters)
+                sendToAllInDict(client: client, topic: array, header: header, topiclength: msgLen, subFilters: subFilters)
 
             }
             if(QoS == 1)
             {
                 let Message:[UInt8] = [(0x40), (0x02),(0x00), (0x01)]
                 send(client, Message, Message.capacity,0)
-                sendToAllInDict(client: client, topic: array, topiclength: msgLen+2, subFilters: subFilters)
+                sendToAllInDict(client: client, topic: array, header: header, topiclength: msgLen, subFilters: subFilters)
             }
             if(QoS == 2)
             {
                 let Message:[UInt8] = [(0x50), (0x02),(0x00), (0x01)]
                 send(client, Message, Message.capacity,0)
-                let msgLen = publishMessage.getMsgLen(buffer:buffer)
-                let data = NSData(bytesNoCopy: buffer, length: msgLen+2, freeWhenDone: false)
-                let array = [UInt8](data)
             }
         }
         
         else if (messageType == 6){
-            if(publishMessage.getReserved(buffer: buffer) != 2){
+            if(publishMessage.getReserved(header: header) != 2){
                 print("Bits 3,2,1,0 is wrong closing connection PUBLISH")
-                DisconnectMessage.init().sendDisconnectAck(client: client, buffer: buffer)
-                
+                DisconnectMessage.init().sendDisconnectAck(client: client, buffer: buffer, length: length, header: header)
             }
-
             let Message:[UInt8] = [(0x70), (0x02),(0x00), (0x01)]
             send(client, Message, Message.capacity,0)
-//            sendToAllInDict(client: client, topic: array, topiclength: msgLen+2, subFilters: subFilters)
         }
     }
 }
 
 
 class UnsubscribeMessage{
-    func getUnsubscribeMessage(client:Int32, buffer:UnsafeMutablePointer<UInt8>){
+    func getUnsubscribeMessage(client:Int32, buffer:UnsafeMutablePointer<UInt8>, length: UInt32, header: UInt8){
         let unsubscribeMessage = MQTTUnsubscribeMessage.init()
-        let messageType = unsubscribeMessage.getMessageType(buffer: buffer)
+        let messageType = unsubscribeMessage.getMessageType(header: header)
         
         if(messageType == 10){
             if(unsubscribeMessage.getReservedQoS(buffer: buffer) != 0){
                 print("Bits 3,2,1,0 is wrong closing connection SUBSCRIBE")
-                DisconnectMessage.init().sendDisconnectAck(client: client, buffer: buffer)
+                DisconnectMessage.init().sendDisconnectAck(client: client, buffer: buffer, length: length, header: header)
             }
             
             let MessageID = unsubscribeMessage.getMsgIdentifier(buffer: buffer)
@@ -114,15 +105,15 @@ class UnsubscribeMessage{
 
 class SubscribeMessage{
     
-    func getSubscribeMessage(client:Int32, buffer:UnsafeMutablePointer<UInt8>){
+    func getSubscribeMessage(client:Int32, buffer:UnsafeMutablePointer<UInt8>, length: UInt32, header: UInt8){
         let subscribeMessage = MQTTSubscribeMessage.init()
-        let messageType = subscribeMessage.getMessageType(buffer: buffer)
+        let messageType = subscribeMessage.getMessageType(header: header)
         
         if(messageType == 8)
         {
             if(subscribeMessage.getReservedQoS(buffer: buffer) != 0){
                 print("Bits 3,2,1,0 is wrong closing connection SUBSCRIBE")
-                DisconnectMessage.init().sendDisconnectAck(client: client, buffer: buffer)
+                DisconnectMessage.init().sendDisconnectAck(client: client, buffer: buffer, length: length, header: header)
             }
             let MessageID = subscribeMessage.getMsgIdentifier(buffer: buffer)
             let firstMessageID = MessageID.0
@@ -151,13 +142,31 @@ class SubscribeMessage{
         }
     }
 }
-func sendToAllInDict(client: Int32, topic: [UInt8], topiclength: Int, subFilters: [String:Array<Int32>]){
+func sendToAllInDict(client: Int32, topic: [UInt8], header: UInt8, topiclength: Int, subFilters: [String:Array<Int32>]){
     print("-------")
+    let fPointer = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
+    fPointer[0] = header
+    
+    var totalLength = topic.count
+    
+    var lengthBytes: Array<UInt8> = []
+    repeat {
+        var b = UInt8(totalLength % 128)
+        totalLength /= 128
+        
+        if totalLength > 0 {
+            b |= 128
+        }
+        
+        lengthBytes.append(b)
+    } while(totalLength > 0)
+    
+    let reSizeBuffer: UnsafeMutablePointer<UInt8> = UnsafeMutablePointer<UInt8>.allocate(capacity: Int(lengthBytes.count))
+    reSizeBuffer.initialize(from: lengthBytes, count: lengthBytes.count)
     for (filter,value) in subFilters{
         for i in value{
-            print(i)
-            print(topic)
-            print(topiclength)
+            send(i, fPointer, 1, 0)
+            send(i, reSizeBuffer, lengthBytes.count, 0)
             send(i,topic,topiclength,0)
         }
 
@@ -182,20 +191,20 @@ class ConnectAckMessage{
     let badUsernameOrPassword:[UInt8] = [(0x20), (0x02), (0x00), (0x04)]
     let notauthorized:[UInt8] = [(0x20), (0x02), (0x00), (0x05)]
     
-    func sendConnectAck(client:Int32, buffer:UnsafeMutablePointer<UInt8>){
+    func sendConnectAck(client:Int32, buffer:UnsafeMutablePointer<UInt8>, length: UInt32, header: UInt8){
         
         let connectMessage = MQTTConnectMessage.init()
-        let messageType = connectMessage.getMessageType(buffer: buffer)
-
+        let messageType = connectMessage.getMessageType(header: header)
+        print(messageType)
         
         if(messageType == 1){
-            let messageLen = connectMessage.getMessageLen(buffer: buffer)
+            let messageLen = Int(length)
+            print("Messagelen: ", messageLen)
             let protocolName = connectMessage.getProtocolName(buffer: buffer)
             let protocolNameLen = connectMessage.getProtocolNameLength(buffer: buffer)
             let version = connectMessage.getVersion(buffer: buffer)
             let clientIDLength = connectMessage.getClientIDLength(buffer: buffer)
             let clientName = connectMessage.getClientID(buffer: buffer)
-            print(connectMessage.getClientUserName(buffer: buffer))
             if (version != 4 && messageType == 1)
             {
                 print(protocolVerWrong)
@@ -205,19 +214,12 @@ class ConnectAckMessage{
                 print(connAccepted)
                 send(client, connAccepted, connAccepted.capacity,0)
             }
-            
         }
-
     }
 }
 
-
 class MQTT {
-    
     func start (){
-//        Creating the socket
-
-        
         let serverPort = String(1883)
         let socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)
 
@@ -278,11 +280,6 @@ class MQTT {
             var socketAdressLength:UInt32 = UInt32(MemoryLayout.size(ofValue: socketAdress).self)
             
             let client = accept(socket, &socketAdress, &socketAdressLength)
-
-            let (ipAddress, servicePort) = sockaddrDescription(addr: &socketAdress)
-            
-//            let message = "Accepted connection from: " + (ipAddress ?? "nil") + ", from port:" + (servicePort ?? "nil")
-            print(client)
             
             connectionQueue.async() {
                 receiveAndDispatch(client: client)
@@ -294,33 +291,53 @@ class MQTT {
 func receiveAndDispatch(client: Int32) {
 
     let dataProcessingQueue = DispatchQueue(label: "dataProcessingQueue", attributes: [.concurrent] )
-    let bufferSize = 256
-    let readBuffer: UnsafeMutablePointer<UInt8> = UnsafeMutablePointer<UInt8>.allocate(capacity: Int(bufferSize))
+    let headerSize = 1
+    var headerBuffer: UnsafeMutablePointer<UInt8> = UnsafeMutablePointer<UInt8>.allocate(capacity: Int(headerSize))
     
     reciveDataFromClients: while true {
         
-        let numOfFd:Int32 = client + 1
-        var readSet:fd_set = fd_set(fds_bits: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+        let readHeader = recv(client,headerBuffer,headerSize,0)
         
-        fdSet(client, set: &readSet)
-        let status = select(numOfFd, &readSet, nil, nil,nil)
+        // 1
+        var header = headerBuffer[0]
         
-        let readResult = recv(client,readBuffer,bufferSize,0)
+        var multiplier: UInt32 = 1
+        
+        // 2
+        var value: UInt32 = 0
+        var encodedByte: UInt8
+        repeat{
+            recv(client,headerBuffer,headerSize,0)
+            encodedByte = headerBuffer[0]
+            value += UInt32(encodedByte & 127) * multiplier
+            multiplier *= 128
+        }while ((encodedByte & 128) != 0)
+        
+        let readBuffer: UnsafeMutablePointer<UInt8> = UnsafeMutablePointer<UInt8>.allocate(capacity: Int(value))
+        let readResult = recv(client,readBuffer,Int(value),0)
         print("hedsadsa")
         print(readResult)
         
-        if readResult == -1 {
+        let newPtr = UnsafeMutablePointer<UInt8>.allocate(capacity: headerSize + Int(value))
+        newPtr.initialize(from: headerBuffer, count: headerSize)
+        newPtr.advanced(by: headerSize).initialize(from: readBuffer, count: Int(value))
+        
+        let data = NSData(bytesNoCopy: newPtr, length:headerSize + Int(value), freeWhenDone: false)
+
+        
+        
+        if readResult == -1 && readHeader == -1 {
             
             let reSizeBuffer: UnsafeMutablePointer<UInt8> = UnsafeMutablePointer<UInt8>.allocate(capacity: Int(readResult))
             reSizeBuffer.initialize(from: readBuffer, count: readResult)
-            DisconnectMessage.init().sendDisconnectAck(client: client, buffer: reSizeBuffer)
+            DisconnectMessage.init().sendDisconnectAck(client: client, buffer: reSizeBuffer, length: value, header: header)
             break reciveDataFromClients
         }
-        if readResult == 0 {
+        if readResult == 0 && readHeader == 0 {
             print("0")
             let reSizeBuffer: UnsafeMutablePointer<UInt8> = UnsafeMutablePointer<UInt8>.allocate(capacity: Int(readResult))
             reSizeBuffer.initialize(from: readBuffer, count: readResult)
-            DisconnectMessage.init().sendDisconnectAck(client: client, buffer: reSizeBuffer)
+            DisconnectMessage.init().sendDisconnectAck(client: client, buffer: reSizeBuffer, length: value, header: header)
             break reciveDataFromClients
         }
         
@@ -330,76 +347,14 @@ func receiveAndDispatch(client: Int32) {
         let reSizeBuffer: UnsafeMutablePointer<UInt8> = UnsafeMutablePointer<UInt8>.allocate(capacity: Int(readResult))
         reSizeBuffer.initialize(from: readBuffer, count: readResult)
         let bufferlength:Int = Int(MemoryLayout.size(ofValue: reSizeBuffer).self)
-        dataProcessingQueue.async() {
-            processClientData(client: client, data: reSizeBuffer, size: readResult)
-            
-        }
+        processClientData(client: client, data: readBuffer, length: value, header: header)
     }
 }
-func processClientData(client: Int32,data: UnsafeMutablePointer<UInt8>, size:Int) {
+func processClientData(client: Int32,data: UnsafeMutablePointer<UInt8>, length: UInt32, header: UInt8) {
     print("insideProcessData")
-    ConnectAckMessage.init().sendConnectAck(client: client, buffer: data)
-    SubscribeMessage.init().getSubscribeMessage(client: client, buffer: data)
-    UnsubscribeMessage.init().getUnsubscribeMessage(client: client, buffer: data)
-    PublishMessage.init().sendpublishAck(client: client, buffer: data)
-    PingResponse.init().sendPingResponse(client: client, buffer: data)
+    ConnectAckMessage.init().sendConnectAck(client: client, buffer: data, length: length, header: header)
+    SubscribeMessage.init().getSubscribeMessage(client: client, buffer: data, length: length, header: header)
+    UnsubscribeMessage.init().getUnsubscribeMessage(client: client, buffer: data, length: length, header: header)
+    PublishMessage.init().sendpublishAck(client: client, buffer: data, length: length, header: header)
+    PingResponse.init().sendPingResponse(client: client, buffer: data, length: length, header: header)
 }
-func sockaddrDescription(addr: UnsafePointer<sockaddr>) -> (String?, String?) {
-    
-    var host : String?
-    var service : String?
-    
-    var hostBuffer = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-    var serviceBuffer = [CChar](repeating: 0, count: Int(NI_MAXSERV))
-    
-    if getnameinfo(addr, socklen_t(addr.pointee.sa_len), &hostBuffer, socklen_t(hostBuffer.count), &serviceBuffer, socklen_t(serviceBuffer.count), NI_NUMERICHOST | NI_NUMERICSERV) == 0 {
-        
-        host = String(cString: hostBuffer)
-        service = String(cString: serviceBuffer)
-    }
-    return (host, service)
-}
-
-func fdSet(_ fd: Int32, set: inout fd_set) {
-    let intOffset = Int(fd / 32)
-    let bitOffset = fd % 32
-    let mask:Int32 = 1 << bitOffset
-    switch intOffset {
-        case 0: set.fds_bits.0 = set.fds_bits.0 | mask
-        case 1: set.fds_bits.1 = set.fds_bits.1 | mask
-        case 2: set.fds_bits.2 = set.fds_bits.2 | mask
-        case 3: set.fds_bits.3 = set.fds_bits.3 | mask
-        case 4: set.fds_bits.4 = set.fds_bits.4 | mask
-        case 5: set.fds_bits.5 = set.fds_bits.5 | mask
-        case 6: set.fds_bits.6 = set.fds_bits.6 | mask
-        case 7: set.fds_bits.7 = set.fds_bits.7 | mask
-        case 8: set.fds_bits.8 = set.fds_bits.8 | mask
-        case 9: set.fds_bits.9 = set.fds_bits.9 | mask
-        case 10: set.fds_bits.10 = set.fds_bits.10 | mask
-        case 11: set.fds_bits.11 = set.fds_bits.11 | mask
-        case 12: set.fds_bits.12 = set.fds_bits.12 | mask
-        case 13: set.fds_bits.13 = set.fds_bits.13 | mask
-        case 14: set.fds_bits.14 = set.fds_bits.14 | mask
-        case 15: set.fds_bits.15 = set.fds_bits.15 | mask
-        case 16: set.fds_bits.16 = set.fds_bits.16 | mask
-        case 17: set.fds_bits.17 = set.fds_bits.17 | mask
-        case 18: set.fds_bits.18 = set.fds_bits.18 | mask
-        case 19: set.fds_bits.19 = set.fds_bits.19 | mask
-        case 20: set.fds_bits.20 = set.fds_bits.20 | mask
-        case 21: set.fds_bits.21 = set.fds_bits.21 | mask
-        case 22: set.fds_bits.22 = set.fds_bits.22 | mask
-        case 23: set.fds_bits.23 = set.fds_bits.23 | mask
-        case 24: set.fds_bits.24 = set.fds_bits.24 | mask
-        case 25: set.fds_bits.25 = set.fds_bits.25 | mask
-        case 26: set.fds_bits.26 = set.fds_bits.26 | mask
-        case 27: set.fds_bits.27 = set.fds_bits.27 | mask
-        case 28: set.fds_bits.28 = set.fds_bits.28 | mask
-        case 29: set.fds_bits.29 = set.fds_bits.29 | mask
-        case 30: set.fds_bits.30 = set.fds_bits.30 | mask
-        case 31: set.fds_bits.31 = set.fds_bits.31 | mask
-        default: break
-    }
-}
-
-
-
