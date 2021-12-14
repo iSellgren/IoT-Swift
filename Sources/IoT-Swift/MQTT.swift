@@ -8,6 +8,8 @@
 import Foundation
 
 var subFilters: [String:Array<Int32>] = [:]
+var retainMessage: [String:[UInt8]] = [:]
+
 class PingResponse{
     let responseMessage:[UInt8] = [(0xD0), (0x00)]
     
@@ -48,17 +50,20 @@ class PublishMessage{
 //            let header = NSData(bytesNoCopy: header, length: 2)
             let data = NSData(bytesNoCopy: buffer, length: msgLen, freeWhenDone: false)
             let array = [UInt8](data)
+            let getRetain = publishMessage.getRetain(header: header)
+            let getTopic = publishMessage.getTopic(buffer: buffer)
+            let getMessage = publishMessage.getMessage(buffer: buffer, length: length)
             
             if(QoS == 0)
             {
-                sendToAllInDict(client: client, topic: array, header: header, topiclength: msgLen, subFilters: subFilters)
+                sendToAllInDict(client: client, buffer: array, header: header, bufferlength: msgLen, subFilters: subFilters,getTopic:getTopic,getRetain:getRetain)
 
             }
             if(QoS == 1)
             {
                 let Message:[UInt8] = [(0x40), (0x02),(0x00), (0x01)]
                 send(client, Message, Message.capacity,0)
-                sendToAllInDict(client: client, topic: array, header: header, topiclength: msgLen, subFilters: subFilters)
+//                sendToAllInDict(client: client, buffer: array, header: header, bufferlength: msgLen, subFilters: subFilters)
             }
             if(QoS == 2)
             {
@@ -97,7 +102,7 @@ class UnsubscribeMessage{
             
             let getTopic = unsubscribeMessage.getTopic(buffer: buffer)
             popDict(client: client, getTopic: getTopic, subFilters: &subFilters)
-            print(subFilters)
+//            print(subFilters)
             send(client, UnSubAck, UnSubAck.capacity,0)
         }
     }
@@ -125,16 +130,18 @@ class SubscribeMessage{
             
             if(subscribeMessage.getRequestedQoS(buffer: buffer) == 0){
                 let getTopic = subscribeMessage.getTopic(buffer: buffer)
-                setDict(client: client, getTopic: getTopic, subFilters: &subFilters)
-                print(subFilters)
+                setDict(client: client, topic: getTopic, subFilters: &subFilters)
+                
                 send(client, SuBackQoS0, SuBackQoS0.capacity,0)
+                
+                sendToRetainMap(client: client, topic: getTopic, retainMessage: &retainMessage,subFilters: &subFilters)
             }else if(subscribeMessage.getRequestedQoS(buffer: buffer) == 1){
                 let getTopic = subscribeMessage.getTopic(buffer: buffer)
-                setDict(client: client, getTopic: getTopic, subFilters: &subFilters)
+                setDict(client: client, topic: getTopic, subFilters: &subFilters)
                 send(client, SuBackQoS1, SuBackQoS1.capacity,0)
             }else if(subscribeMessage.getRequestedQoS(buffer: buffer) == 2){
                 let getTopic = subscribeMessage.getTopic(buffer: buffer)
-                setDict(client: client, getTopic: getTopic, subFilters: &subFilters)
+                setDict(client: client, topic: getTopic, subFilters: &subFilters)
                 send(client, SuBackQoS2, SuBackQoS2.capacity,0)
             }else{
                 send(client, Failure, Failure.capacity,0)
@@ -142,13 +149,10 @@ class SubscribeMessage{
         }
     }
 }
-func sendToAllInDict(client: Int32, topic: [UInt8], header: UInt8, topiclength: Int, subFilters: [String:Array<Int32>]){
-    print("-------")
+func sendToAllInDict(client: Int32, buffer: [UInt8], header: UInt8, bufferlength: Int, subFilters: [String:Array<Int32>],getTopic:String,getRetain:Int){
     let fPointer = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
     fPointer[0] = header
-    
-    var totalLength = topic.count
-    
+    var totalLength = buffer.count
     var lengthBytes: Array<UInt8> = []
     repeat {
         var b = UInt8(totalLength % 128)
@@ -157,28 +161,76 @@ func sendToAllInDict(client: Int32, topic: [UInt8], header: UInt8, topiclength: 
         if totalLength > 0 {
             b |= 128
         }
-        
         lengthBytes.append(b)
     } while(totalLength > 0)
     
     let reSizeBuffer: UnsafeMutablePointer<UInt8> = UnsafeMutablePointer<UInt8>.allocate(capacity: Int(lengthBytes.count))
     reSizeBuffer.initialize(from: lengthBytes, count: lengthBytes.count)
+    
+    var test:[UInt8] = [(header)]
+    for i in lengthBytes
+    {
+        test.append(i)
+    }
+    for i in buffer
+    {
+        test.append(i)
+    }
+    if(getRetain == 1){
+        retainMessage.updateValue(test, forKey: getTopic)
+    }
+    
+    
+    
     for (filter,value) in subFilters{
         for i in value{
-            send(i, fPointer, 1, 0)
-            send(i, reSizeBuffer, lengthBytes.count, 0)
-            send(i,topic,topiclength,0)
+//            send(i, fPointer, 1, 0)
+//            send(i, reSizeBuffer, lengthBytes.count, 0)
+//            send(i,buffer,bufferlength,0)
+            send(i,test,test.count,0)
         }
-
     }
 }
-
-func setDict(client: Int32, getTopic: String, subFilters:inout [String:Array<Int32>]){
-    if(subFilters[getTopic] == nil){
-        subFilters[getTopic] = []
+func sendToRetainMap(client:Int32, topic: String, retainMessage:inout [String:[UInt8]],subFilters:inout [String:Array<Int32>]){
+    
+    for (filter,value) in retainMessage{
+        print("retainMessage",filter)
+        print("buffer",value)
+        send(client,value,value.count,0)
+            
     }
-    subFilters[getTopic]?.append(client)
+    
+//    for (filter,value) in subFilters{
+//        print("subFilter",filter)
+//        for i in value{
+//            print("clients",i)
+//        }
+//    }
+    
+    
+    
 }
+
+
+
+func setDict(client: Int32, topic: String, subFilters:inout [String:Array<Int32>]){
+    if(subFilters[topic] == nil){
+        subFilters[topic] = []
+    }
+    subFilters[topic]?.append(client)
+}
+func setRetainMessage(buffer: [UInt8], header:UInt8, getTopic: String, bufferlength :Int, retainMessage:inout [String:[UInt8]]){
+    
+    var test:[UInt8] = [(header)]
+    for i in buffer
+    {
+
+        test.append(i)
+    }
+    
+    retainMessage.updateValue(test, forKey: getTopic)
+}
+
 func popDict(client: Int32, getTopic: String, subFilters:inout [String:Array<Int32>]){
     subFilters = subFilters.mapValues{ $0.filter{ $0 != client } }
 }
@@ -282,13 +334,13 @@ class MQTT {
             let client = accept(socket, &socketAdress, &socketAdressLength)
             
             connectionQueue.async() {
-                receiveAndDispatch(client: client)
+                receiveDataFromClients(client: client)
                 
             }
         }
     }
 }
-func receiveAndDispatch(client: Int32) {
+func receiveDataFromClients(client: Int32) {
 
     let dataProcessingQueue = DispatchQueue(label: "dataProcessingQueue", attributes: [.concurrent] )
     let headerSize = 1
@@ -298,12 +350,10 @@ func receiveAndDispatch(client: Int32) {
         
         let readHeader = recv(client,headerBuffer,headerSize,0)
         
-        // 1
         var header = headerBuffer[0]
         
         var multiplier: UInt32 = 1
         
-        // 2
         var value: UInt32 = 0
         var encodedByte: UInt8
         repeat{
@@ -315,16 +365,7 @@ func receiveAndDispatch(client: Int32) {
         
         let readBuffer: UnsafeMutablePointer<UInt8> = UnsafeMutablePointer<UInt8>.allocate(capacity: Int(value))
         let readResult = recv(client,readBuffer,Int(value),0)
-        print("hedsadsa")
-        print(readResult)
-        
-        let newPtr = UnsafeMutablePointer<UInt8>.allocate(capacity: headerSize + Int(value))
-        newPtr.initialize(from: headerBuffer, count: headerSize)
-        newPtr.advanced(by: headerSize).initialize(from: readBuffer, count: Int(value))
-        
-        let data = NSData(bytesNoCopy: newPtr, length:headerSize + Int(value), freeWhenDone: false)
-
-        
+  
         
         if readResult == -1 && readHeader == -1 {
             
